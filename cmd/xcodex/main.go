@@ -95,7 +95,7 @@ func resolveSessionFile(fileArg string) (string, error) {
 	return filePath, nil
 }
 
-func resolveCompressSessionFile(fileArg string, selector string, cwd string, limit int) (string, error) {
+func resolveSelectableSessionFile(fileArg string, selector string, cwd string, limit int) (string, error) {
 	if fileArg != "" {
 		return fileArg, nil
 	}
@@ -114,6 +114,14 @@ func resolveCompressSessionFile(fileArg string, selector string, cwd string, lim
 		return "", fmt.Errorf("no Codex sessions found. Use --file to specify a session file")
 	}
 	return filePath, nil
+}
+
+func resolveCompressSessionFile(fileArg string, selector string, cwd string, limit int) (string, error) {
+	return resolveSelectableSessionFile(fileArg, selector, cwd, limit)
+}
+
+func resolveDiffSessionFile(fileArg string, selector string, cwd string, limit int) (string, error) {
+	return resolveSelectableSessionFile(fileArg, selector, cwd, limit)
 }
 
 // --- compress ---
@@ -290,10 +298,23 @@ func cmdStats(args []string) {
 func cmdDiff(args []string) {
 	fs := newFlagSet("diff")
 	file := fs.String("file", "", "Path to specific session JSONL file")
+	cwd := fs.String("cwd", "", "Filter by project path when selecting by index")
+	limit := fs.Int("limit", 15, "Session window used for index lookup")
 	verbose := fs.Bool("verbose", false, "Show change content summary")
 	fs.Parse(args)
 
-	filePath, err := resolveSessionFile(*file)
+	remaining := fs.Args()
+	if len(remaining) > 1 {
+		fmt.Fprintln(os.Stderr, "Error: diff accepts at most one session selector")
+		os.Exit(1)
+	}
+
+	selector := ""
+	if len(remaining) == 1 {
+		selector = remaining[0]
+	}
+
+	filePath, err := resolveDiffSessionFile(*file, selector, *cwd, *limit)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

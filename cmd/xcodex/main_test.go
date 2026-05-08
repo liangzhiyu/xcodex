@@ -114,3 +114,59 @@ func TestResolveCompressSessionFileReturnsLookupErrors(t *testing.T) {
 		t.Fatalf("expected wrapped error %v, got %v", want, err)
 	}
 }
+
+func TestResolveDiffSessionFileUsesIndexSelector(t *testing.T) {
+	origIndex := findSessionByIndex
+	defer func() { findSessionByIndex = origIndex }()
+
+	called := false
+	findSessionByIndex = func(index int, cwd string, limit int) (string, error) {
+		called = true
+		if index != 2 {
+			t.Fatalf("expected index 2, got %d", index)
+		}
+		if cwd != "/repo" {
+			t.Fatalf("expected cwd /repo, got %q", cwd)
+		}
+		if limit != 25 {
+			t.Fatalf("expected limit 25, got %d", limit)
+		}
+		return "/tmp/diff-by-index.jsonl", nil
+	}
+
+	path, err := resolveDiffSessionFile("", "2", "/repo", 25)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if !called {
+		t.Fatal("expected findSessionByIndex to be called")
+	}
+	if path != "/tmp/diff-by-index.jsonl" {
+		t.Fatalf("unexpected path: %q", path)
+	}
+}
+
+func TestResolveDiffSessionFileUsesIDSelector(t *testing.T) {
+	origID := findSessionByID
+	defer func() { findSessionByID = origID }()
+
+	called := false
+	findSessionByID = func(id string) (string, error) {
+		called = true
+		if id != "session-42" {
+			t.Fatalf("expected id session-42, got %q", id)
+		}
+		return "/tmp/diff-by-id.jsonl", nil
+	}
+
+	path, err := resolveDiffSessionFile("", "session-42", "", 15)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if !called {
+		t.Fatal("expected findSessionByID to be called")
+	}
+	if path != "/tmp/diff-by-id.jsonl" {
+		t.Fatalf("unexpected path: %q", path)
+	}
+}

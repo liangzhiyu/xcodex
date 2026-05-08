@@ -75,6 +75,9 @@ xcodex stats --since 30d         # 最近 30 天
 
 ```bash
 xcodex diff                      # 最新会话的文件变更
+xcodex diff 3                    # 查看 list 输出中的第 3 条会话
+xcodex diff abc123               # 按 session id 查看指定会话
+xcodex diff --cwd /path 3        # 在指定项目窗口里按序号选择
 xcodex diff --file PATH          # 指定会话
 xcodex diff --verbose            # 含变更行数概要
 ```
