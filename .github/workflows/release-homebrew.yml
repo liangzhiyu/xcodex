@@ -107,28 +107,9 @@ jobs:
           import re
 
           path = Path('homebrew-xcodex/Formula/xcodex.rb')
-          if path.exists():
-              text = path.read_text()
-          else:
-              text = '''class Xcodex < Formula
-  desc "Codex CLI data management tool"
-  homepage "https://github.com/liangzhiyu/xcodex"
-  url "__URL__"
-  sha256 "__SHA__"
-  license "MIT"
-  head "https://github.com/liangzhiyu/xcodex.git", branch: "main"
-
-  depends_on "go" => :build
-
-  def install
-    system "go", "build", *std_go_args(ldflags: "-s -w"), "./cmd/xcodex"
-  end
-
-  test do
-    assert_match "Codex 数据管理工具", shell_output("#{bin}/xcodex help 2>&1")
-  end
-end
-'''
+          if not path.exists():
+              raise SystemExit(f'Missing formula: {path}')
+          text = path.read_text()
 
           text = re.sub(r'url ".*?"', f'url "{os.environ["TARBALL_URL"]}"', text)
           text = re.sub(r'sha256 ".*?"', f'sha256 "{os.environ["SHA256"]}"', text)
