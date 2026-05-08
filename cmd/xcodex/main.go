@@ -147,7 +147,8 @@ func cmdList(args []string) {
 		return
 	}
 
-	fmt.Println("Recent Codex sessions:\n")
+	fmt.Println("Recent Codex sessions:")
+	fmt.Println()
 	for i, s := range sessions {
 		tokenStr := ""
 		if s.TokensUsed > 0 {
