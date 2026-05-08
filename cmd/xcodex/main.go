@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime/debug"
 	"strconv"
 	"strings"
 
@@ -11,8 +12,10 @@ import (
 )
 
 var (
-	findLatestSession = codex.FindLatestSession
-	findSessionByID   = codex.FindSessionByID
+	version            = "dev"
+	readBuildInfo      = debug.ReadBuildInfo
+	findLatestSession  = codex.FindLatestSession
+	findSessionByID    = codex.FindSessionByID
 	findSessionByIndex = codex.FindSessionByIndex
 )
 
@@ -23,6 +26,8 @@ func main() {
 	}
 
 	switch os.Args[1] {
+	case "version", "--version", "-v":
+		printVersion()
 	case "compress":
 		cmdCompress(os.Args[2:])
 	case "list":
@@ -51,6 +56,7 @@ Usage:
   xcodex <command> [options]
 
 Commands:
+  version    显示版本号
   compress   压缩会话上下文（语义剪枝 + token 预算）
   list       列出会话
   search     全文搜索会话内容
@@ -60,6 +66,25 @@ Commands:
 
 Use "xcodex <command> --help" for more information.
 `)
+}
+
+func currentVersion() string {
+	if version != "" && version != "dev" {
+		return version
+	}
+	if info, ok := readBuildInfo(); ok {
+		if info.Main.Version != "" && info.Main.Version != "(devel)" {
+			return info.Main.Version
+		}
+	}
+	if version == "" {
+		return "dev"
+	}
+	return version
+}
+
+func printVersion() {
+	fmt.Printf("xcodex %s\n", currentVersion())
 }
 
 func parseTokenBudget(s string) int {

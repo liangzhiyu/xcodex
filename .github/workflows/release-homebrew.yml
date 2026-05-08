@@ -65,10 +65,12 @@ jobs:
           echo "tarball_url=$TARBALL_URL" >> "$GITHUB_OUTPUT"
 
       - name: Build and test source
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
         run: |
           set -euo pipefail
           go test ./...
-          go build ./cmd/xcodex
+          go build -ldflags "-X main.version=${TAG}" ./cmd/xcodex
 
       - name: Compute tarball sha256
         id: sha

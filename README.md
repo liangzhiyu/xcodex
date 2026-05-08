@@ -25,6 +25,16 @@ go build -o xcodex ./cmd/xcodex/
 
 ## 命令
 
+### `xcodex version` — 查看版本
+
+```bash
+xcodex version
+xcodex --version
+xcodex -v
+```
+
+优先显示构建注入的 release 版本；本地未注入时会回退到 Go build info，再不行显示 `dev`。
+
 ### `xcodex compress` — 会话压缩
 
 将 Codex 会话压缩为语义剪枝后的 Markdown，用于跨工具上下文转发（如 Codex → Claude Code）。

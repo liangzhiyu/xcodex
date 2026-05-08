@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"runtime/debug"
 	"testing"
 )
 
@@ -168,5 +169,59 @@ func TestResolveDiffSessionFileUsesIDSelector(t *testing.T) {
 	}
 	if path != "/tmp/diff-by-id.jsonl" {
 		t.Fatalf("unexpected path: %q", path)
+	}
+}
+
+func TestCurrentVersionPrefersInjectedVersion(t *testing.T) {
+	origVersion := version
+	origReadBuildInfo := readBuildInfo
+	defer func() {
+		version = origVersion
+		readBuildInfo = origReadBuildInfo
+	}()
+
+	version = "v9.9.9"
+	readBuildInfo = func() (*debug.BuildInfo, bool) {
+		return &debug.BuildInfo{Main: debug.Module{Version: "v1.2.3"}}, true
+	}
+
+	if got := currentVersion(); got != "v9.9.9" {
+		t.Fatalf("expected injected version, got %q", got)
+	}
+}
+
+func TestCurrentVersionFallsBackToBuildInfo(t *testing.T) {
+	origVersion := version
+	origReadBuildInfo := readBuildInfo
+	defer func() {
+		version = origVersion
+		readBuildInfo = origReadBuildInfo
+	}()
+
+	version = "dev"
+	readBuildInfo = func() (*debug.BuildInfo, bool) {
+		return &debug.BuildInfo{Main: debug.Module{Version: "v1.2.3"}}, true
+	}
+
+	if got := currentVersion(); got != "v1.2.3" {
+		t.Fatalf("expected build info version, got %q", got)
+	}
+}
+
+func TestCurrentVersionFallsBackToDev(t *testing.T) {
+	origVersion := version
+	origReadBuildInfo := readBuildInfo
+	defer func() {
+		version = origVersion
+		readBuildInfo = origReadBuildInfo
+	}()
+
+	version = "dev"
+	readBuildInfo = func() (*debug.BuildInfo, bool) {
+		return &debug.BuildInfo{Main: debug.Module{Version: "(devel)"}}, true
+	}
+
+	if got := currentVersion(); got != "dev" {
+		t.Fatalf("expected dev fallback, got %q", got)
 	}
 }
