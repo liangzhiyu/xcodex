@@ -1,0 +1,167 @@
+name: release-homebrew
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to release and sync to Homebrew (example: v0.1.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release-and-sync-homebrew:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Resolve release metadata
+        id: meta
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            TAG="$INPUT_TAG"
+          else
+            TAG="$REF_NAME"
+          fi
+
+          if [ -z "$TAG" ]; then
+            echo 'Tag is required' >&2
+            exit 1
+          fi
+
+          if ! git rev-parse "$TAG" >/dev/null 2>&1; then
+            git fetch --tags origin
+          fi
+
+          if ! git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag not found: $TAG" >&2
+            exit 1
+          fi
+
+          VERSION="${TAG#v}"
+          TARBALL_URL="https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/${TAG}.tar.gz"
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tarball_url=$TARBALL_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Build and test source
+        run: |
+          set -euo pipefail
+          go test ./...
+          go build ./cmd/xcodex
+
+      - name: Compute tarball sha256
+        id: sha
+        env:
+          TARBALL_URL: ${{ steps.meta.outputs.tarball_url }}
+        run: |
+          set -euo pipefail
+          curl -fsSL "$TARBALL_URL" -o /tmp/xcodex-release.tar.gz
+          SHA=$(sha256sum /tmp/xcodex-release.tar.gz | awk '{print $1}')
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          generate_release_notes: true
+          make_latest: true
+
+      - name: Checkout Homebrew tap
+        uses: actions/checkout@v4
+        with:
+          repository: liangzhiyu/homebrew-xcodex
+          path: homebrew-xcodex
+          ssh-key: ${{ secrets.HOMEBREW_TAP_SSH_KEY }}
+
+      - name: Update formula
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+          TARBALL_URL: ${{ steps.meta.outputs.tarball_url }}
+          SHA256: ${{ steps.sha.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          import os
+          import re
+
+          path = Path('homebrew-xcodex/Formula/xcodex.rb')
+          if path.exists():
+              text = path.read_text()
+          else:
+              text = '''class Xcodex < Formula
+  desc "Codex CLI data management tool"
+  homepage "https://github.com/liangzhiyu/xcodex"
+  url "__URL__"
+  sha256 "__SHA__"
+  license "MIT"
+  head "https://github.com/liangzhiyu/xcodex.git", branch: "main"
+
+  depends_on "go" => :build
+
+  def install
+    system "go", "build", *std_go_args(ldflags: "-s -w"), "./cmd/xcodex"
+  end
+
+  test do
+    assert_match "Codex 数据管理工具", shell_output("#{bin}/xcodex help 2>&1")
+  end
+end
+'''
+
+          text = re.sub(r'url ".*?"', f'url "{os.environ["TARBALL_URL"]}"', text)
+          text = re.sub(r'sha256 ".*?"', f'sha256 "{os.environ["SHA256"]}"', text)
+          path.parent.mkdir(parents=True, exist_ok=True)
+          path.write_text(text)
+          PY
+
+      - name: Commit and push formula update
+        working-directory: homebrew-xcodex
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+          SHA256: ${{ steps.sha.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Formula/xcodex.rb
+          if git diff --cached --quiet; then
+            echo 'No tap changes to commit.'
+            exit 0
+          fi
+          git commit -m "chore: sync xcodex ${TAG}"
+          git push origin HEAD:main
+
+      - name: Workflow summary
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+          TARBALL_URL: ${{ steps.meta.outputs.tarball_url }}
+          SHA256: ${{ steps.sha.outputs.sha256 }}
+        run: |
+          {
+            echo "## Release synced"
+            echo "- Tag: ${TAG}"
+            echo "- Tarball: ${TARBALL_URL}"
+            echo "- SHA256: ${SHA256}"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/liangzhiyu/xcodex/internal/codex"
+	"github.com/liangzhiyu/xcodex/internal/xcodex"
 )
 
 func main() {

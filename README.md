@@ -111,3 +111,20 @@ internal/codex/
 ## License
 
 MIT
+
+## 发布流程
+
+发布新版本时执行：
+
+```bash
+git tag v0.1.1
+git push origin v0.1.1
+```
+
+推送 `v*` tag 后，GitHub Actions 会自动：
+
+- 运行 `go test ./...`
+- 构建 `./cmd/xcodex`
+- 创建或更新对应 GitHub Release
+- 计算源码 tarball 的 `sha256`
+- 更新 `liangzhiyu/homebrew-xcodex` 中的 `Formula/xcodex.rb`
