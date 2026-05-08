@@ -7,7 +7,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/liangzhiyu/xcodex/internal/xcodex"
+	codex "github.com/liangzhiyu/xcodex/internal/xcodex"
+)
+
+var (
+	findLatestSession = codex.FindLatestSession
+	findSessionByID   = codex.FindSessionByID
+	findSessionByIndex = codex.FindSessionByIndex
 )
 
 func main() {
@@ -82,7 +88,28 @@ func resolveSessionFile(fileArg string) (string, error) {
 	if fileArg != "" {
 		return fileArg, nil
 	}
-	filePath, err := codex.FindLatestSession()
+	filePath, err := findLatestSession()
+	if err != nil || filePath == "" {
+		return "", fmt.Errorf("no Codex sessions found. Use --file to specify a session file")
+	}
+	return filePath, nil
+}
+
+func resolveCompressSessionFile(fileArg string, selector string, cwd string, limit int) (string, error) {
+	if fileArg != "" {
+		return fileArg, nil
+	}
+	if selector != "" {
+		index, err := strconv.Atoi(selector)
+		if err == nil {
+			if index <= 0 {
+				return "", fmt.Errorf("session index must be >= 1")
+			}
+			return findSessionByIndex(index, cwd, limit)
+		}
+		return findSessionByID(selector)
+	}
+	filePath, err := findLatestSession()
 	if err != nil || filePath == "" {
 		return "", fmt.Errorf("no Codex sessions found. Use --file to specify a session file")
 	}
@@ -94,13 +121,26 @@ func resolveSessionFile(fileArg string) (string, error) {
 func cmdCompress(args []string) {
 	fs := newFlagSet("compress")
 	file := fs.String("file", "", "Path to specific session JSONL file")
+	cwd := fs.String("cwd", "", "Filter by project path when selecting by index")
+	limit := fs.Int("limit", 15, "Session window used for index lookup")
 	tokens := fs.String("tokens", "64k", "Max token budget (e.g. 64k, 32k)")
 	copy := fs.Bool("copy", false, "Copy output to clipboard")
 	fs.Parse(args)
 
+	remaining := fs.Args()
+	if len(remaining) > 1 {
+		fmt.Fprintln(os.Stderr, "Error: compress accepts at most one session selector")
+		os.Exit(1)
+	}
+
+	selector := ""
+	if len(remaining) == 1 {
+		selector = remaining[0]
+	}
+
 	maxTokens := parseTokenBudget(*tokens)
 
-	filePath, err := resolveSessionFile(*file)
+	filePath, err := resolveCompressSessionFile(*file, selector, *cwd, *limit)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

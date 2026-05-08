@@ -32,6 +32,9 @@ go build -o xcodex ./cmd/xcodex/
 ```bash
 xcodex compress                  # 压缩最新会话，64k token 预算
 xcodex compress --tokens 32k     # 指定 token 预算（8k/16k/32k/64k）
+xcodex compress 3                # 压缩 list 输出中的第 3 条会话
+xcodex compress abc123           # 按 session id 压缩指定会话
+xcodex compress --cwd /path 3    # 在指定项目窗口里按序号选择
 xcodex compress --file PATH      # 指定会话文件
 xcodex compress --copy           # 复制到剪贴板
 ```

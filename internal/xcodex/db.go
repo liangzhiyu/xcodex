@@ -144,60 +144,36 @@ func listFromFilesystem(limit int) ([]SessionEntry, error) {
 }
 
 func FindLatestSession() (string, error) {
-	dbPath := StateDBPath()
-	if _, err := os.Stat(dbPath); err == nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
+	return FindSessionByIndex(1, "", 1)
+}
 
-		cmd := exec.CommandContext(ctx, "sqlite3", dbPath, "-json",
-			"SELECT rollout_path FROM threads ORDER BY updated_at DESC LIMIT 1")
-		out, err := cmd.Output()
-		if err == nil {
-			var rows []struct {
-				RolloutPath string `json:"rollout_path"`
-			}
-			if json.Unmarshal(out, &rows) == nil && len(rows) > 0 {
-				if _, err := os.Stat(rows[0].RolloutPath); err == nil {
-					return rows[0].RolloutPath, nil
-				}
-			}
-		}
+func FindSessionByIndex(index int, cwd string, limit int) (string, error) {
+	if index <= 0 {
+		return "", fmt.Errorf("session index must be >= 1")
+	}
+	if limit <= 0 {
+		limit = 15
 	}
 
-	// Fallback: scan filesystem
-	home := codexHome()
-	dirs := []string{
-		filepath.Join(home, "sessions"),
-		filepath.Join(home, "archived_sessions"),
+	var (
+		sessions []SessionEntry
+		err      error
+	)
+	if cwd != "" {
+		sessions, err = ListSessionsByCwd(cwd, limit)
+	} else {
+		sessions, err = ListRecentSessions(limit)
 	}
-
-	var latestPath string
-	var latestMtime time.Time
-
-	for _, dir := range dirs {
-		entries, err := os.ReadDir(dir)
-		if err != nil {
-			continue
-		}
-		for _, e := range entries {
-			if e.IsDir() || !strings.HasSuffix(e.Name(), ".jsonl") {
-				continue
-			}
-			info, err := e.Info()
-			if err != nil {
-				continue
-			}
-			if info.ModTime().After(latestMtime) {
-				latestPath = filepath.Join(dir, e.Name())
-				latestMtime = info.ModTime()
-			}
-		}
+	if err != nil {
+		return "", err
 	}
-
-	if latestPath == "" {
-		return "", fmt.Errorf("no sessions found")
+	if index > len(sessions) {
+		return "", fmt.Errorf("session index out of range: %d (only %d sessions listed)", index, len(sessions))
 	}
-	return latestPath, nil
+	if sessions[index-1].RolloutPath == "" {
+		return "", fmt.Errorf("session %d has empty rollout path", index)
+	}
+	return sessions[index-1].RolloutPath, nil
 }
 
 func FindSessionByID(id string) (string, error) {
