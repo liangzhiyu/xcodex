@@ -4,6 +4,21 @@ Codex CLI 数据管理工具。从会话压缩到全文搜索，一站式管理�
 
 ## 安装
 
+### Homebrew
+
+```bash
+brew tap liangzhiyu/xcodex
+brew install xcodex
+```
+
+### Go 安装
+
+```bash
+go install github.com/liangzhiyu/xcodex/cmd/xcodex@latest
+```
+
+### 本地构建
+
 ```bash
 go build -o xcodex ./cmd/xcodex/
 ```
